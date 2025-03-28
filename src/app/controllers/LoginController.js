@@ -281,6 +281,7 @@ const resetPassword = async (req, res) => {
     }
 };
 
+// Hàm đăng nhập bằng Google
 const googleLogin = async (req, res) => {
     let connection;
     try {
@@ -337,6 +338,36 @@ const googleLogin = async (req, res) => {
     }
 };
 
+// Lấy tất cả user
+const getAllUsers = async (req, res) => {
+    let connection;
+    try {
+        connection = await getConnection();
+        const [users] = await connection.execute("SELECT * FROM users");
+        res.json(users);
+    } catch (error) {
+        console.error("Lỗi lấy danh sách user:", error);
+        res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+const deleteUser = async (req, res) => {
+    let connection;
+    try {
+        const { id } = req.params;
+        connection = await getConnection();
+        await connection.execute("DELETE FROM users WHERE userId = ?", [id]);
+        res.json({ message: "Xóa user thành công" });
+    } catch (error) {
+        console.error("Lỗi xóa user:", error);
+        res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
 export {
     handleDataLogin,
     handleDataMe,
@@ -348,4 +379,6 @@ export {
     verifyResetCode,
     resetPassword,
     googleLogin,
+    getAllUsers,
+    deleteUser,
 };

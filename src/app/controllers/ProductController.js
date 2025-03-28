@@ -246,6 +246,7 @@ const handleProductAdd = async (req, res) => {
             highlightType,
             descHTML,
             components,
+            imageDetails, // 🆕 Thêm danh sách ảnh chi tiết
         } = req.body;
 
         if (
@@ -268,7 +269,7 @@ const handleProductAdd = async (req, res) => {
 
         connection = await getConnection();
 
-        // Thêm sản phẩm vào bảng products
+        // 🟢 Thêm sản phẩm vào bảng products
         const [result] = await connection.execute(
             "INSERT INTO products (name, priceOld, priceNew, imageUrl, sale, stockQuantity, categoryId, supplierId, brandId, highlightType, descHTML) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
@@ -285,9 +286,9 @@ const handleProductAdd = async (req, res) => {
                 descHTML,
             ]
         );
-        const productId = result.insertId; // Lấy ID sản phẩm vừa thêm
+        const productId = result.insertId; // 🆕 Lấy ID sản phẩm vừa thêm
 
-        // Thêm các linh kiện vào productcomponents nếu có
+        // 🟢 Thêm các linh kiện vào bảng productcomponents nếu có
         if (components && components.length > 0) {
             const componentValues = components.map((c) => [
                 productId,
@@ -297,6 +298,18 @@ const handleProductAdd = async (req, res) => {
             await connection.query(
                 "INSERT INTO productcomponents (productId, componentId, quantity) VALUES ?",
                 [componentValues]
+            );
+        }
+
+        // 🟢 Thêm danh sách ảnh chi tiết vào bảng imagedetail nếu có
+        if (imageDetails && imageDetails.length > 0) {
+            const imageValues = imageDetails.map((img) => [
+                productId,
+                img.imageUrl,
+            ]);
+            await connection.query(
+                "INSERT INTO imagedetail (productId, imageUrl) VALUES ?",
+                [imageValues]
             );
         }
 
@@ -366,6 +379,7 @@ const handleProductUpdate = async (req, res) => {
             highlightType,
             descHTML,
             components,
+            imageDetails, // 🆕 Thêm danh sách ảnh chi tiết
         } = req.body;
 
         if (
@@ -436,6 +450,24 @@ const handleProductUpdate = async (req, res) => {
             await connection.query(
                 "INSERT INTO productcomponents (productId, componentId, quantity) VALUES ?",
                 [componentValues]
+            );
+        }
+
+        // 🔥 Cập nhật danh sách ảnh chi tiết
+        if (imageDetails && imageDetails.length > 0) {
+            // Xóa tất cả ảnh chi tiết cũ
+            await connection.execute(
+                "DELETE FROM imagedetail WHERE productId = ?",
+                [productId]
+            );
+
+            // Thêm ảnh chi tiết mới
+            const placeholders = imageDetails.map(() => "(?, ?)").join(", ");
+            const values = imageDetails.flatMap((img) => [productId, img]);
+
+            await connection.execute(
+                `INSERT INTO imagedetail (productId, imageUrl) VALUES ${placeholders}`,
+                values
             );
         }
 

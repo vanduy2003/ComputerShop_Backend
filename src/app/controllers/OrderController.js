@@ -1,5 +1,6 @@
 import { getConnection, releaseConnection } from "../../config/db/index.js";
 
+// POST: /api/v1/data/create-order
 const handleCreateOrder = async (req, res) => {
     const {
         userId,
@@ -80,9 +81,9 @@ const handleCreateOrder = async (req, res) => {
     }
 };
 
+// GET: /api/v1/data/buy-success/:id
 const handleBuySuccess = async (req, res) => {
     const orderId = req.params.id; // ✅ Lấy orderId từ URL chính xác
-    console.log("🖥️ Server nhận orderId:", orderId); // 📌 Kiểm tra log trên server
 
     if (!orderId) {
         return res
@@ -138,4 +139,193 @@ const handleBuySuccess = async (req, res) => {
     }
 };
 
-export { handleCreateOrder, handleBuySuccess };
+// GET: /api/v1/data/order
+const handleGetOrder = async (req, res) => {
+    let connection;
+    try {
+        connection = await getConnection();
+
+        // 1️⃣ Truy vấn lấy danh sách đơn hàng
+        const [orderResults] = await connection.execute(`SELECT 
+                o.*, 
+                GROUP_CONCAT(od.product_name SEPARATOR ', ') AS product_names
+            FROM orders o
+            LEFT JOIN order_details od ON o.orderId = od.orderId
+            GROUP BY o.orderId
+            ORDER BY o.created_at DESC`);
+
+        // 2️⃣ Trả về dữ liệu đơn hàng
+        res.json({ success: true, orders: orderResults });
+    } catch (error) {
+        console.error("Lỗi khi lấy danh sách đơn hàng:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi khi lấy danh sách đơn hàng",
+            error: error.message,
+        });
+    } finally {
+        releaseConnection(connection); // ✅ Giải phóng kết nối
+    }
+};
+
+// PUT: /api/v1/data/update-status/:id
+const handleUpdateStatus = async (req, res) => {
+    const orderId = req.params.id;
+    const { status } = req.body;
+
+    if (
+        ![
+            "pending",
+            "confirmed",
+            "completed",
+            "cancelled",
+            "shiping",
+            "shiped",
+        ].includes(status)
+    ) {
+        return res.status(400).json({ message: "Trạng thái không hợp lệ" });
+    }
+
+    let connection;
+    try {
+        connection = await getConnection();
+
+        // 1️⃣ Cập nhật trạng thái đơn hàng
+        const [result] = await connection.execute(
+            `UPDATE orders SET order_status = ? WHERE orderId = ?`,
+            [status, orderId]
+        );
+
+        if (result.affectedRows > 0) {
+            return res.json({
+                success: true,
+                message: "Cập nhật trạng thái đơn hàng thành công!",
+            });
+        } else {
+            return res
+                .status(404)
+                .json({ success: false, message: "Không tìm thấy đơn hàng!" });
+        }
+    } catch (error) {
+        console.error("Lỗi khi cập nhật trạng thái đơn hàng:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi khi cập nhật trạng thái đơn hàng",
+            error: error.message,
+        });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+// DELETE: /api/v1/data/delete-order/:id
+const handleDeleteOrder = async (req, res) => {
+    const orderId = req.params.id;
+
+    if (!orderId) {
+        return res.status(400).json({ message: "Thiếu orderId!" });
+    }
+
+    let connection;
+    try {
+        connection = await getConnection();
+
+        // 1️⃣ Xóa đơn hàng
+        const [result] = await connection.execute(
+            `DELETE FROM orders WHERE orderId = ?`,
+            [orderId]
+        );
+
+        if (result.affectedRows > 0) {
+            return res.json({
+                success: true,
+                message: "Xóa đơn hàng thành công!",
+            });
+        } else {
+            return res
+                .status(404)
+                .json({ success: false, message: "Không tìm thấy đơn hàng!" });
+        }
+    } catch (error) {
+        console.error("Lỗi khi xóa đơn hàng:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi khi xóa đơn hàng",
+            error: error.message,
+        });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+const handleGetOrderByUser = async (req, res) => {
+    const userId = req.params.id; // ✅ Lấy userId từ URL
+
+    if (!userId) {
+        return res
+            .status(400)
+            .json({ success: false, message: "Thiếu userId!" });
+    }
+
+    let connection;
+    try {
+        connection = await getConnection();
+
+        // 1️⃣ Truy vấn danh sách đơn hàng của user
+        const [orders] = await connection.execute(
+            `SELECT * FROM orders WHERE userId = ? ORDER BY created_at DESC`,
+            [userId]
+        );
+
+        if (orders.length === 0) {
+            return res.json({
+                success: true,
+                message: "Người dùng chưa có đơn hàng nào.",
+                orders: [],
+            });
+        }
+
+        // 2️⃣ Truy vấn chi tiết sản phẩm của từng đơn hàng
+        const ordersWithDetails = await Promise.all(
+            orders.map(async (order) => {
+                const [orderDetails] = await connection.execute(
+                    `SELECT od.productId, od.product_name, od.price, od.quantity, od.subtotal, 
+                            p.imageUrl AS product_image, p.highlightType
+                     FROM order_details od
+                     JOIN products p ON od.productId = p.productId  
+                     WHERE od.orderId = ?`,
+                    [order.orderId]
+                );
+
+                return {
+                    ...order,
+                    cartItems: orderDetails, // ✅ Danh sách sản phẩm có thêm ảnh
+                };
+            })
+        );
+
+        // 3️⃣ Trả về danh sách đơn hàng kèm sản phẩm
+        res.json({
+            success: true,
+            orders: ordersWithDetails,
+        });
+    } catch (error) {
+        console.error("Lỗi khi lấy danh sách đơn hàng:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi khi lấy danh sách đơn hàng",
+            error: error.message,
+        });
+    } finally {
+        releaseConnection(connection); // ✅ Giải phóng kết nối
+    }
+};
+
+export {
+    handleCreateOrder,
+    handleBuySuccess,
+    handleGetOrder,
+    handleUpdateStatus,
+    handleDeleteOrder,
+    handleGetOrderByUser,
+};

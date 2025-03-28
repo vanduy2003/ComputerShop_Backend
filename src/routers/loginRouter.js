@@ -29,4 +29,9 @@ router.post("/api/v1/auth/resetPassword", hendleLogin.resetPassword);
 // Api đăng nhập bằng Google
 router.post("/api/v1/auth/google-login", hendleLogin.googleLogin);
 
+// Api lấy tất cả user
+router.get("/api/v1/data/users", hendleLogin.getAllUsers);
+// Api xóa user
+router.delete("/api/v1/data/delete-user/:id", hendleLogin.deleteUser);
+
 export default router;
