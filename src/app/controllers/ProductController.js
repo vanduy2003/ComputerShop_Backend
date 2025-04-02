@@ -362,6 +362,7 @@ const handleProductDelete = async (req, res) => {
     }
 };
 
+// PUT /api/v1/data/product-update
 const handleProductUpdate = async (req, res) => {
     let connection;
     try {

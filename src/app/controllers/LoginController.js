@@ -359,7 +359,7 @@ const deleteUser = async (req, res) => {
         const { id } = req.params;
         connection = await getConnection();
         await connection.execute("DELETE FROM users WHERE userId = ?", [id]);
-        res.json({ message: "Xóa user thành công" });
+        res.json({ message: "Xóa user thành công", success: true });
     } catch (error) {
         console.error("Lỗi xóa user:", error);
         res.status(500).json({ message: "Lỗi server" });

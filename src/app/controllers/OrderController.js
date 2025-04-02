@@ -1,4 +1,6 @@
 import { getConnection, releaseConnection } from "../../config/db/index.js";
+import crypto from "crypto"; // ✅ Thêm import cho crypto
+import axios from "axios"; // ✅ Thêm import cho axios
 
 // POST: /api/v1/data/create-order
 const handleCreateOrder = async (req, res) => {
@@ -6,6 +8,7 @@ const handleCreateOrder = async (req, res) => {
         userId,
         receiverName,
         phoneNumber,
+        email,
         provinceName,
         districtName,
         wardName,
@@ -29,12 +32,13 @@ const handleCreateOrder = async (req, res) => {
 
         // 1️⃣ Thêm đơn hàng vào bảng orders
         const [orderResult] = await connection.execute(
-            `INSERT INTO orders (userId, receiver_name, phone_number, province, district, ward, address, total_price, payment_method, countItems, order_status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO orders (userId, receiver_name, phone_number, email, province, district, ward, address, total_price, payment_method, countItems, order_status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 userId,
                 receiverName,
                 phoneNumber,
+                email,
                 provinceName,
                 districtName,
                 wardName,
@@ -258,6 +262,7 @@ const handleDeleteOrder = async (req, res) => {
     }
 };
 
+// GET: /api/v1/data/order/:id
 const handleGetOrderByUser = async (req, res) => {
     const userId = req.params.id; // ✅ Lấy userId từ URL
 
@@ -321,6 +326,114 @@ const handleGetOrderByUser = async (req, res) => {
     }
 };
 
+// POST: /api/v1/data/create-payment
+const handleCreatePayment = async (req, res) => {
+    try {
+        console.log("Dữ liệu nhận từ frontend:", req.body); // Debug
+
+        const { orderId, amount } = req.body;
+        if (!orderId || !amount) {
+            return res.status(400).json({ error: "Thiếu orderId hoặc amount" });
+        }
+
+        const partnerCode = "MOMO";
+        const accessKey = "F8BBA842ECF85";
+        const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+        const requestId = partnerCode + new Date().getTime();
+        const momoOrderId = `ORDER_${orderId}_${Date.now()}`; // ✅ Tạo orderId duy nhất
+        const orderInfo = "Thanh toán đơn hàng";
+        const redirectUrl =
+            "http://localhost:8080/me/cart/buy-success/" + orderId; // Đường dẫn sau khi thanh toán thành công
+        const ipnUrl = "https://your-backend.com/api/v1/payment/momo-ipn"; // Webhook nhận phản hồi từ MoMo
+        const requestType = "captureWallet";
+        const extraData = "";
+
+        // 🔐 Tạo chữ ký
+        const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${momoOrderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+        const signature = crypto
+            .createHmac("sha256", secretKey)
+            .update(rawSignature)
+            .digest("hex");
+
+        // 📡 Gửi request tới MoMo
+        const requestBody = {
+            partnerCode,
+            accessKey,
+            requestId,
+            amount,
+            orderId: momoOrderId, // ✅ Sử dụng orderId duy nhất
+            orderInfo,
+            redirectUrl,
+            ipnUrl,
+            extraData,
+            requestType,
+            signature,
+            lang: "vi",
+        };
+
+        const response = await axios.post(
+            "https://test-payment.momo.vn/v2/gateway/api/create",
+            requestBody,
+            { headers: { "Content-Type": "application/json" } }
+        );
+
+        console.log("Kết quả từ MoMo:", response.data); // Debug
+
+        res.json(response.data);
+    } catch (error) {
+        console.error(
+            "Lỗi MoMo:",
+            error.response ? error.response.data : error
+        );
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// POST: /api/v1/payment/momo-ipn
+const handleMoMoIPN = async (req, res) => {
+    try {
+        console.log("📢 Nhận dữ liệu từ MoMo IPN:", req.body);
+
+        const {
+            orderId, // Đây là `momoOrderId` (ORDER_{orderId}_{timestamp})
+            requestId,
+            amount,
+            resultCode,
+            message,
+        } = req.body;
+
+        if (!orderId || !resultCode) {
+            return res.status(400).json({ error: "Dữ liệu không hợp lệ" });
+        }
+
+        const connection = await getConnection();
+
+        // ✅ Nếu giao dịch thành công (resultCode === 0)
+        if (resultCode === 0) {
+            // Trích xuất orderId gốc từ momoOrderId (ORDER_{orderId}_{timestamp})
+            const originalOrderId = orderId.split("_")[1];
+
+            // Cập nhật trạng thái đơn hàng
+            await connection.execute(
+                `UPDATE orders SET payment_status = ? WHERE orderId = ?`,
+                ["paid", originalOrderId]
+            );
+
+            console.log(
+                `✅ Đã cập nhật trạng thái thanh toán cho đơn hàng ${originalOrderId}`
+            );
+        } else {
+            console.log(`❌ Thanh toán thất bại: ${message}`);
+        }
+
+        releaseConnection(connection);
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Lỗi xử lý IPN MoMo:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export {
     handleCreateOrder,
     handleBuySuccess,
@@ -328,4 +441,6 @@ export {
     handleUpdateStatus,
     handleDeleteOrder,
     handleGetOrderByUser,
+    handleCreatePayment,
+    handleMoMoIPN,
 };

@@ -15,6 +15,7 @@ const handleGetNews = async (req, res) => {
     }
 };
 
+// GET /api/v1/data/news/:id
 const handleGetNewById = async (req, res) => {
     let connection;
     try {
@@ -31,6 +32,7 @@ const handleGetNewById = async (req, res) => {
     }
 };
 
+// POST /api/v1/data/news
 const handleAddNew = async (req, res) => {
     let connection;
     try {
@@ -65,24 +67,27 @@ const handleAddNew = async (req, res) => {
     }
 };
 
+// PUT /api/v1/data/news/:id
 const handleUpdateNew = async (req, res) => {
     let connection;
     try {
         const newId = req.params.id;
-        const { title, thumbnail, type, description, content } = req.body;
+        const { title, thumbnail, type, description, content, videoUrl } =
+            req.body;
         if (!title || !thumbnail || !type || !content) {
             return res
                 .status(400)
                 .json({ success: false, message: "Thiếu dữ liệu bài viết!" });
         }
         connection = await getConnection();
-        const query = `UPDATE news SET title = ?, thumbnail = ?, type = ?, description = ?, content = ? WHERE newId = ?`;
+        const query = `UPDATE news SET title = ?, thumbnail = ?, type = ?, description = ?, content = ?, videoUrl = ? WHERE newId = ?`;
         await connection.execute(query, [
             title,
             thumbnail,
             type,
             description,
             content,
+            videoUrl,
             newId,
         ]);
         res.json({ success: true });
@@ -94,6 +99,7 @@ const handleUpdateNew = async (req, res) => {
     }
 };
 
+// DELETE /api/v1/data/news/:id
 const handleDeleteNew = async (req, res) => {
     let connection;
     try {
