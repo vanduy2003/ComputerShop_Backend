@@ -484,6 +484,99 @@ const handleProductUpdate = async (req, res) => {
     }
 };
 
+const handleAddFavorite = async (req, res) => {
+    let connection;
+    try {
+        const { userId, productId } = req.body;
+
+        if (!userId || !productId) {
+            return res
+                .status(400)
+                .json({ message: "Thiếu thông tin yêu thích" });
+        }
+
+        connection = await getConnection();
+
+        // Kiểm tra sản phẩm đã có trong danh sách yêu thích chưa
+        const [existingFavorite] = await connection.execute(
+            "SELECT * FROM wishlists WHERE userId = ? AND productId = ?",
+            [userId, productId]
+        );
+
+        if (existingFavorite.length > 0) {
+            // Nếu sản phẩm đã có, xóa khỏi danh sách yêu thích
+            await connection.execute(
+                "DELETE FROM wishlists WHERE userId = ? AND productId = ?",
+                [userId, productId]
+            );
+            return res.json({ message: "Xóa khỏi danh sách yêu thích" });
+        } else {
+            // Nếu chưa có, thêm vào danh sách yêu thích
+            await connection.execute(
+                "INSERT INTO wishlists (userId, productId) VALUES (?, ?)",
+                [userId, productId]
+            );
+            return res.json({ message: "Thêm vào danh sách yêu thích" });
+        }
+    } catch (error) {
+        console.error("Lỗi khi thêm vào danh sách yêu thích:", error);
+        return res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+// GET /api/v1/data/get-favorite/:userId
+const handleGetFavorite = async (req, res) => {
+    let connection;
+    try {
+        const { userId } = req.params; // Lấy userId từ params
+
+        if (!userId) {
+            return res.status(400).json({ message: "Thiếu userId" });
+        }
+
+        connection = await getConnection();
+        const [favoriteItems] = await connection.execute(
+            `SELECT p.productId, p.name, p.priceOld, p.priceNew, p.imageUrl, p.highlightType FROM wishlists w LEFT JOIN products p ON w.productId = p.productId WHERE userId = ?`,
+            [userId]
+        );
+        return res.json(favoriteItems);
+    } catch (error) {
+        console.error("Lỗi lấy danh sách yêu thích:", error);
+        return res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+// DELETE /api/v1/data/delete-favorite/:userId/:productId
+const handleDeleteFavorite = async (req, res) => {
+    let connection;
+    try {
+        const { userId, productId } = req.params; // Lấy userId và productId từ params
+
+        if (!userId || !productId) {
+            return res
+                .status(400)
+                .json({ message: "Thiếu thông tin yêu thích" });
+        }
+
+        connection = await getConnection();
+        await connection.execute(
+            "DELETE FROM wishlists WHERE userId = ? AND productId = ?",
+            [userId, productId]
+        );
+
+        return res.json({ message: "Xóa khỏi danh sách yêu thích thành công" });
+    } catch (error) {
+        console.error("Lỗi xóa khỏi danh sách yêu thích:", error);
+        return res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
 export {
     handleGetProduct,
     handleGetProductById,
@@ -494,4 +587,7 @@ export {
     handleProductAdd,
     handleProductDelete,
     handleProductUpdate,
+    handleAddFavorite,
+    handleGetFavorite,
+    handleDeleteFavorite,
 };

@@ -15,4 +15,17 @@ router.delete(
 );
 router.put("/api/v1/data/product-update", hendleProduct.handleProductUpdate);
 
+// 🟢 Thêm sản phẩm vào danh sách yêu thích
+router.post("/api/v1/data/add-favorite", hendleProduct.handleAddFavorite);
+
+router.get(
+    "/api/v1/data/get-favorite/:userId",
+    hendleProduct.handleGetFavorite
+);
+
+router.delete(
+    "/api/v1/data/delete-favorite/:userId/:productId",
+    hendleProduct.handleDeleteFavorite
+);
+
 export default router;

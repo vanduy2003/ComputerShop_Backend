@@ -43,4 +43,22 @@ router.delete(
     handleCategori.handleDeleteSupplier
 );
 
+// Add component
+router.post(
+    "/api/v1/data/components/add-component",
+    handleCategori.handleAddComponent
+);
+
+// Update component
+router.put(
+    "/api/v1/data/components/update-component/:id",
+    handleCategori.handleUpdateComponent
+);
+
+// Delete component
+router.delete(
+    "/api/v1/data/components/delete-component/:id",
+    handleCategori.handleDeleteComponent
+);
+
 export default router;

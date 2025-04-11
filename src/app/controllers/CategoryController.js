@@ -53,7 +53,7 @@ const handleGetComponents = async (req, res) => {
     let connection;
     try {
         connection = await getConnection();
-        const query = `SELECT * FROM components`;
+        const query = `SELECT c.*, b.logoUrl, b.name As brandName FROM components c LEFT JOIN brands b on c.brandId = b.brandId `;
         const [rows] = await connection.execute(query);
         res.json(rows);
     } catch (error) {
@@ -279,6 +279,83 @@ const handleDeleteSupplier = async (req, res) => {
     }
 };
 
+// POST /api/v1/data/components/add-component
+const handleAddComponent = async (req, res) => {
+    let connection;
+    try {
+        connection = await getConnection();
+        const { name, componentType, specifications, imageUrl } = req.body;
+        const query = `INSERT INTO components (name, componentType, specifications, imageUrl) VALUES (?, ?, ?, ?)`;
+        const [result] = await connection.execute(query, [
+            name,
+            componentType,
+            specifications,
+            imageUrl,
+        ]);
+        const component = {
+            componentId: result.insertId,
+            name,
+            componentType,
+            specifications,
+            imageUrl,
+        };
+        res.status(201).json({ success: true, component });
+    } catch (error) {
+        console.error("Lỗi khi thêm linh kiện:", error);
+        res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+// PUT /api/v1/data/components/update-component/:id
+const handleUpdateComponent = async (req, res) => {
+    let connection;
+    try {
+        connection = await getConnection();
+        const { name, componentType, specifications, imageUrl } = req.body;
+        const { id } = req.params;
+        const query = `UPDATE components SET name = ?, componentType = ?, specifications = ?, imageUrl = ? WHERE componentId = ?`;
+        await connection.execute(query, [
+            name,
+            componentType,
+            specifications,
+            imageUrl,
+            id,
+        ]);
+        const [rows] = await connection.execute(
+            "SELECT * FROM components WHERE componentId = ?",
+            [id]
+        );
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Linh kiện không tồn tại" });
+        }
+        res.status(200).json({ success: true, component: rows[0] });
+    } catch (error) {
+        console.error("Lỗi khi cập nhật linh kiện:", error);
+        res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
+// DELETE /api/v1/data/components/delete-component/:id
+const handleDeleteComponent = async (req, res) => {
+    let connection;
+    try {
+        connection = await getConnection();
+        const { id } = req.params;
+        const query = `DELETE FROM components WHERE componentId = ?`;
+        await connection.execute(query, [id]);
+        res.status(200).json({ success: true, componentId: id });
+    } catch (error) {
+        console.error("Lỗi khi xóa linh kiện:", error);
+        res.status(500).json({ message: "Lỗi server" });
+    } finally {
+        releaseConnection(connection);
+    }
+};
+
 export {
     handleGetCategory,
     handleGetSuppliers,
@@ -290,4 +367,7 @@ export {
     handleAddSupplier,
     handleUpdateSupplier,
     handleDeleteSupplier,
+    handleAddComponent,
+    handleUpdateComponent,
+    handleDeleteComponent,
 };

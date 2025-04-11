@@ -353,6 +353,7 @@ const getAllUsers = async (req, res) => {
     }
 };
 
+// Xóa user
 const deleteUser = async (req, res) => {
     let connection;
     try {
